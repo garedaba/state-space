@@ -9,7 +9,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
 
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import butter, sosfiltfilt
+from scipy.signal import butter, sosfiltfilt, resample
+from scipy.interpolate import interp1d
 
 from math import atan2, degrees
 
@@ -65,7 +66,7 @@ def load_data(datadir):
     return point_data, info
 
 
-def process_data(data, add_features=True, do_filter=True, filter_cutoff=5):
+def process_data(data, add_features=True, new_frequency = 10, do_filter=True, frequency=25):
     """
     apply preprocessing to trajectory data
 
@@ -75,10 +76,20 @@ def process_data(data, add_features=True, do_filter=True, filter_cutoff=5):
     """
 
     r = rearrange(data, 'samples time (nodes features) -> samples nodes time features', nodes=18, features=2)
-
-    processed_data = []
-
+    
+    processed_data = []  
+    
     for r0 in r:
+        
+        if do_filter:
+            #sos = butter(4, filter_cutoff, 'low', fs=frequency, output='sos')
+            #r0 = sosfiltfilt(sos, r0, axis=1)
+            r0 = gaussian_filter1d(r0, frequency // 4, axis=1)
+            
+        if new_frequency != frequency:
+            npoints = np.shape(r0)[1]
+            interpf = interp1d(np.arange(npoints), r0, kind='cubic', axis=1, fill_value = 'extrapolate')
+            r0 = interpf(np.linspace(0, npoints, int(npoints *  (new_frequency / frequency))))
 
         if add_features:
             d = rearrange(r0, 'nodes time features -> time (nodes features)')
@@ -93,10 +104,6 @@ def process_data(data, add_features=True, do_filter=True, filter_cutoff=5):
 
         else:
             r0 = rearrange(r0, 'nodes time features -> time (nodes features)')
-
-        if do_filter:
-            sos = butter(4, filter_cutoff, 'low', fs=125, output='sos')
-            r0 = sosfiltfilt(sos, r0, axis=0)
 
         # remove any nans *just in case*
         r0 = np.nan_to_num(r0, 0.0)

@@ -66,18 +66,18 @@ def plot_principal_movement(reconstructed_movement, weights, outpath):
         plot_pm_scatter(ax1, frame, reconstructed_movement)
 
         norm = plt.Normalize(np.min(weights), np.max(weights))
-        ax2.scatter(frame, weights[frame], c=weights[frame], norm=norm,  cmap='plasma')
+        ax2.scatter(frame, weights[frame], c=weights[frame], norm=norm,  cmap='pink', edgecolors='grey')
         if frame > 2:
-            ax2.scatter(frame-1, weights[frame-1], alpha=.5, c=weights[frame-1], norm=norm,  cmap='plasma', zorder=0)
+            ax2.scatter(frame-1, weights[frame-1], alpha=.5, c=weights[frame-1], norm=norm,  cmap='pink', zorder=0, edgecolors='grey')
         if frame > 4:
-            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='plasma', zorder=0)
+            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='pink', zorder=0, edgecolors='grey')
         if frame > 8:
-            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='plasma', zorder=0)
+            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='pink', zorder=0, edgecolors='grey')
 
         ax1.set_ylim(np.min(-reconstructed_movement[:,::2])*1.05, np.max(-reconstructed_movement[:,::2])*1.05)
         ax1.set_xlim(np.min(reconstructed_movement[:,1::2])*1.05, np.max(reconstructed_movement[:,1::2])*1.05)
 
-        ax2.set_ylim(-0.003, 0.003)
+        ax2.set_ylim(-6, 6)
         ax2.set_xlim(0,100)
 
         sns.despine(ax=ax1, bottom=True, left=True)
@@ -114,7 +114,7 @@ def plot_all_movements(recon_movements, outpath):
             axes[i].tick_params(axis='both', labelbottom=False, bottom=False, labelleft=False, left=False)
 
         plt.tight_layout()
-        plt.savefig('{:}/all_components_frame_{:03d}.png'.format(outpath, frame), transparent=False)
+        plt.savefig('{:}/all_components_frame_{:03d}.png'.format(outpath, frame), transparent=False, dpi=300)
         plt.close()
 
 def plot_spectra(spectrogram, timeseries, n_freqs = 10, n_comps = 10, outpath='.'):
