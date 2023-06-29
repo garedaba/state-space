@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
 
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import butter, sosfiltfilt, resample
+from scipy.signal import butter, sosfiltfilt, resample, hilbert
 from scipy.interpolate import interp1d
 
 from math import atan2, degrees
@@ -66,7 +66,7 @@ def load_data(datadir):
     return point_data, info
 
 
-def process_data(data, add_features=True, new_frequency = 10, do_filter=True, frequency=25):
+def process_data(data, new_frequency = 10, do_filter=True, frequency=25):
     """
     apply preprocessing to trajectory data
 
@@ -75,97 +75,47 @@ def process_data(data, add_features=True, new_frequency = 10, do_filter=True, fr
     returns: processed data suject x time x (nodes x features) list of processed data arrays
     """
 
-    r = rearrange(data, 'samples time (nodes features) -> samples nodes time features', nodes=18, features=2)
-    
     processed_data = []  
+    processed_outliers = []
     
-    for r0 in r:
+    if do_filter:
+        sos = butter(4, (0.01, new_frequency // 2), 'bandpass', fs=frequency, output='sos') 
+        data = sosfiltfilt(sos, data, axis=1)
+
+    if new_frequency != frequency:
+                
+        # outlier points
+        r_data = rearrange(data, 's t f -> (s t) f')
+        median_position = np.median(r_data, axis=0)
+        mad = np.median(abs(r_data - median_position), axis=0)
+        mad_threshold = 3 * mad * 1.4826
+        outliers = (abs(r_data - median_position) > mad_threshold)
+        outliers = rearrange(outliers, '(s t) f -> s t f', s=len(data))
         
-        if do_filter:
-            #sos = butter(4, filter_cutoff, 'low', fs=frequency, output='sos')
-            #r0 = sosfiltfilt(sos, r0, axis=1)
-            r0 = gaussian_filter1d(r0, frequency // 4, axis=1)
-            
-        if new_frequency != frequency:
-            npoints = np.shape(r0)[1]
-            interpf = interp1d(np.arange(npoints), r0, kind='cubic', axis=1, fill_value = 'extrapolate')
-            r0 = interpf(np.linspace(0, npoints, int(npoints *  (new_frequency / frequency))))
+        for n, r0 in enumerate(data):
+            o0 = outliers[n]
+            # interpolate to lower frequency, accountinng for outlier regions
+            npoints, nfeatures = np.shape(r0)
+            new_npoints = int(npoints *  (new_frequency / frequency))
 
-        if add_features:
-            d = rearrange(r0, 'nodes time features -> time (nodes features)')
+            new_r0 = np.zeros((new_npoints, nfeatures))
+            for f in np.arange(nfeatures):
+                r0_feature = r0[:, f]
+                keep_points = ~o0[:, f]
+                # interpolate (ignoring outliers)
+                interpf = interp1d(np.arange(npoints)[keep_points], r0_feature[keep_points], kind='slinear', bounds_error=False, fill_value = r0_feature[keep_points][-1])
+                new_r0_feature = interpf(np.linspace(0, npoints, new_npoints))
+                new_r0[:,f] = new_r0_feature
+            r0 = new_r0.copy()
 
-            # joint angles
-            ang = np.array([get_named_angles(r0[:,d,:]) for d in np.arange(np.shape(r0)[1])])
-            # in radians
-            ang = np.deg2rad(ang)
+            # remove any nans *just in case*
+            r0 = np.nan_to_num(r0, 0.0)
 
-            # concatenate
-            r0 = np.concatenate((d, ang), axis=-1)
+            processed_data.append(r0)
+    else:
+        processed_data = [data[n,:,:] for n in np.arange(len(data))]
 
-        else:
-            r0 = rearrange(r0, 'nodes time features -> time (nodes features)')
-
-        # remove any nans *just in case*
-        r0 = np.nan_to_num(r0, 0.0)
-
-        processed_data.append(r0)
-
-    return processed_data, []
-
-def angle_between(p1, p2, p3):
-    # https://stackoverflow.com/questions/58953047/issue-with-finding-angle-between-3-points-in-python
-    x1, y1 = p1
-    x2, y2 = p2
-    x3, y3 = p3
-    deg1 = (360 + degrees(atan2(x1 - x2, y1 - y2))) % 360
-    deg2 = (360 + degrees(atan2(x3 - x2, y3 - y2))) % 360
-
-    return deg2 - deg1 if deg1 <= deg2 else 360 - (deg1 - deg2)
-
-def get_named_angles(data):
-    angles = []
-    # R shoulder -clk
-    angles.append(angle_between(data[11,:], data[4,:], data[5,:]))
-    #angles.append(min((angle_between(data[11,:], data[4,:], data[5,:]), angle_between(data[5,:], data[4,:], data[11,:]))))
-
-    # R elbow - clk
-    #angles.append(angle_between(data[6,:], data[5,:], data[4,:]))
-    angles.append(min((angle_between(data[6,:], data[5,:], data[4,:]), angle_between(data[4,:], data[5,:], data[6,:]))))
-
-    # R hip - anticlk
-    #angles.append(angle_between(data[8,:], data[7,:], data[4,:]))
-    angles.append(min((angle_between(data[8,:], data[7,:], data[4,:]), angle_between(data[4,:], data[7,:], data[8,:]))))
-
-    # R knee - clk
-    #angles.append(angle_between(data[7,:], data[8,:], data[9,:]))
-    angles.append(min((angle_between(data[7,:], data[8,:], data[9,:]), angle_between(data[9,:], data[8,:], data[7,:]))))
-
-    # R ankle - anticlk
-    #angles.append(angle_between(data[10,:], data[9,:], data[8,:]))
-    angles.append(min((angle_between(data[10,:], data[9,:], data[8,:]), angle_between(data[8,:], data[9,:], data[10,:]))))
-
-
-    # L shoulder -anticlk
-    angles.append(angle_between(data[12,:], data[11,:], data[4,:]))
-    #angles.append(min((angle_between(data[12,:], data[11,:], data[4,:]), angle_between(data[4,:], data[11,:], data[12,:]))))
-
-    # L elbow - anticlk
-    #angles.append(angle_between(data[11,:], data[12,:], data[13,:]))
-    angles.append(min((angle_between(data[11,:], data[12,:], data[13,:]), angle_between(data[13,:], data[12,:], data[11,:]))))
-
-    # L hip - clk
-    #angles.append(angle_between(data[11,:], data[14,:], data[15,:]))
-    angles.append(min((angle_between(data[11,:], data[14,:], data[15,:]), angle_between(data[15,:], data[14,:], data[11,:]))))
-
-    # L knee - anticlk
-    #angles.append(angle_between(data[16,:], data[15,:], data[14,:]))
-    angles.append(min((angle_between(data[16,:], data[15,:], data[14,:]), angle_between(data[14,:], data[15,:], data[16,:]))))
-
-    # L ankle - clk
-    #angles.append(angle_between(data[15,:], data[16,:], data[17,:]))
-    angles.append(min((angle_between(data[15,:], data[16,:], data[17,:]), angle_between(data[17,:], data[16,:], data[15,:]))))
-
-    return angles
+    return np.array(processed_data), outliers
 
 def get_train_test_split(metadata, split = 0.33, random_state=None):
     """
@@ -255,3 +205,25 @@ def run_svd(data, significance=None, n_perms=100):
     else:
         print('significance option not recognised, running SVD anyway')
         return components, eigenvectors, s, explained_variance_ratio
+
+    
+def get_power_envelopes(timeseries, power=True, padding=25):
+    
+    # timeseries is nsub x ntime x nfeatures
+    assert np.ndim(timeseries) == 3
+    
+    # pad 
+    reflected_timeseries = np.concatenate((timeseries[:,padding-1::-1,:],
+                                            timeseries,
+                                            timeseries[:,-1:-padding-1:-1,:]), axis=1)
+    # hilbert transform
+    analytic_signals = hilbert(reflected_timeseries, axis=1)
+    
+    # oscillatory power
+    amplitude_envelopes = np.abs(analytic_signals)
+    
+    # crop and return
+    if power:
+        return amplitude_envelopes[:,padding:padding+timeseries.shape[1], :] ** 2
+    else:
+        return amplitude_envelopes[:,padding:padding+timeseries.shape[1], :]
