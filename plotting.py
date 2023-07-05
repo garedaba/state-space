@@ -39,20 +39,20 @@ def plot_pm_scatter(axis, frame, data):
     x = data[frame, ::2]
     y = data[frame, 1::2]
 
-    axis.scatter(y, -x, edgecolor='grey', facecolor='#d36084', s=100)
+    axis.scatter(y, -x, edgecolor='grey', facecolor='#f383b4', s=140)
 
     if frame > 2:
         pre_x = data[frame-2, ::2]
         pre_y = data[frame-2, 1::2]
-        axis.scatter(pre_y, -pre_x, edgecolor='grey', facecolor='#d36084', s=90, alpha=0.8, zorder=0)
+        axis.scatter(pre_y, -pre_x, edgecolor='grey', facecolor='#f383b4', s=140, alpha=0.8, zorder=0)
     if frame > 4:
         pre_x = data[frame-4, ::2]
         pre_y = data[frame-4, 1::2]
-        axis.scatter(pre_y, -pre_x, edgecolor='grey', facecolor='#d36084', s=80, alpha=0.5, zorder=0)
+        axis.scatter(pre_y, -pre_x, edgecolor='grey', facecolor='#f383b4', s=120, alpha=0.5, zorder=0)
     if frame > 8:
         pre_x = data[frame-8, ::2]
         pre_y = data[frame-8, 1::2]
-        axis.scatter(pre_y, -pre_x, edgecolor='grey', facecolor='#d36084', s=70, alpha=0.2, zorder=0)
+        axis.scatter(pre_y, -pre_x, edgecolor='grey', facecolor='#f383b4', s=100, alpha=0.2, zorder=0)
 
 
 def plot_principal_movement(reconstructed_movement, weights, outpath):
@@ -66,13 +66,13 @@ def plot_principal_movement(reconstructed_movement, weights, outpath):
         plot_pm_scatter(ax1, frame, reconstructed_movement)
 
         norm = plt.Normalize(np.min(weights), np.max(weights))
-        ax2.scatter(frame, weights[frame], c=weights[frame], norm=norm,  cmap='pink', edgecolors='grey')
+        ax2.scatter(frame, weights[frame], c=weights[frame], norm=norm,  cmap='RdPu_r', edgecolors='grey', s=70)
         if frame > 2:
-            ax2.scatter(frame-1, weights[frame-1], alpha=.5, c=weights[frame-1], norm=norm,  cmap='pink', zorder=0, edgecolors='grey')
+            ax2.scatter(frame-1, weights[frame-1], alpha=.5, c=weights[frame-1], norm=norm,  cmap='RdPu_r', zorder=0, edgecolors='grey', s=70)
         if frame > 4:
-            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='pink', zorder=0, edgecolors='grey')
+            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='RdPu_r', zorder=0, edgecolors='grey', s=70)
         if frame > 8:
-            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='pink', zorder=0, edgecolors='grey')
+            ax2.scatter(frame-2, weights[frame-2], alpha=.5, c=weights[frame-2], norm=norm,  cmap='RdPu_r', zorder=0, edgecolors='grey', s=70)
 
         ax1.set_ylim(np.min(-reconstructed_movement[:,::2])*1.05, np.max(-reconstructed_movement[:,::2])*1.05)
         ax1.set_xlim(np.min(reconstructed_movement[:,1::2])*1.05, np.max(reconstructed_movement[:,1::2])*1.05)
