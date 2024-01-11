@@ -82,17 +82,18 @@ def process_data(data, new_frequency = 10, do_filter=True, frequency=25):
         sos = butter(4, (0.01, new_frequency // 2), 'bandpass', fs=frequency, output='sos') 
         data = sosfiltfilt(sos, data, axis=1)
 
+    # outlier points
+    r_data = rearrange(data, 's t f -> (s t) f')
+    median_position = np.median(r_data, axis=0)
+    mad = np.median(abs(r_data - median_position), axis=0)
+    mad_threshold = 3 * mad * 1.4826
+    outliers = (abs(r_data - median_position) > mad_threshold)
+    outliers = rearrange(outliers, '(s t) f -> s t f', s=len(data))
+    
     if new_frequency != frequency:
-                
-        # outlier points
-        r_data = rearrange(data, 's t f -> (s t) f')
-        median_position = np.median(r_data, axis=0)
-        mad = np.median(abs(r_data - median_position), axis=0)
-        mad_threshold = 3 * mad * 1.4826
-        outliers = (abs(r_data - median_position) > mad_threshold)
-        outliers = rearrange(outliers, '(s t) f -> s t f', s=len(data))
         
         for n, r0 in enumerate(data):
+            
             o0 = outliers[n]
             # interpolate to lower frequency, accountinng for outlier regions
             npoints, nfeatures = np.shape(r0)
