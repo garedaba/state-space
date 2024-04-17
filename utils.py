@@ -75,11 +75,11 @@ def process_data(data, new_frequency = 10, do_filter=True, frequency=25):
     returns: processed data suject x time x (nodes x features) list of processed data arrays
     """
 
-    processed_data = []  
+    processed_data = []
     processed_outliers = []
-    
+
     if do_filter:
-        sos = butter(4, (0.01, new_frequency // 2), 'bandpass', fs=frequency, output='sos') 
+        sos = butter(4, (0.01, new_frequency // 2), 'bandpass', fs=frequency, output='sos')
         data = sosfiltfilt(sos, data, axis=1)
 
     # outlier points
@@ -89,11 +89,11 @@ def process_data(data, new_frequency = 10, do_filter=True, frequency=25):
     mad_threshold = 3 * mad * 1.4826
     outliers = (abs(r_data - median_position) > mad_threshold)
     outliers = rearrange(outliers, '(s t) f -> s t f', s=len(data))
-    
+
     if new_frequency != frequency:
-        
+
         for n, r0 in enumerate(data):
-            
+
             o0 = outliers[n]
             # interpolate to lower frequency, accountinng for outlier regions
             npoints, nfeatures = np.shape(r0)
@@ -118,46 +118,6 @@ def process_data(data, new_frequency = 10, do_filter=True, frequency=25):
 
     return np.array(processed_data), outliers
 
-def get_train_test_split(metadata, split = 0.33, random_state=None):
-    """
-    split data set into training (development) and testing (held-out) data.
-    stratify on GMA score
-    ensure subjects with multiple videos are in the same set
-
-    metadata: sub x features
-
-    returns:
-    train_idx, test_idx: indices for train and test data
-    """
-    print('splitting data')
-    # get first video for each participant
-    unique_participants = metadata.drop_duplicates(subset = 'idnum', keep = 'first')
-
-    X = unique_participants['idnum'].values[:,np.newaxis]
-    Y = unique_participants['gma_vid_score'].values[:,np.newaxis]
-
-    #train test split stratified by gma value
-    x_train, x_validate, y_train, y_validate = train_test_split(X, Y, test_size = split ,stratify = Y, random_state=random_state)
-
-    # get all data for subjects in train
-    train_index = np.where(metadata['idnum'].isin(x_train[:,0]))[0]
-    test_index = np.where(metadata['idnum'].isin(x_validate[:,0]))[0]
-    # no participants shared across groups
-    assert len(set(metadata.iloc[train_index].participant.unique()) & set(metadata.iloc[test_index].participant.unique())) == 0
-
-    return train_index, test_index
-
-def get_params(config):
-    """
-    load parameters from configuration file and save to model directory
-    :param config file, path to configuration
-    :returns: params, dict of parameters
-    """
-    with open(config, 'rb') as f:
-        params = yaml.safe_load(f)
-
-    return params
-
 # SVD
 def run_svd(data, significance=None, n_perms=100):
     """
@@ -167,7 +127,7 @@ def run_svd(data, significance=None, n_perms=100):
                           None, just return the SVD results
     :param n_perms, number of permutations to run, ignored if significance = None or 'mp'
     """
-    
+
     # svd
     u, s, vh = np.linalg.svd(data, full_matrices=False)
 
@@ -206,25 +166,3 @@ def run_svd(data, significance=None, n_perms=100):
     else:
         print('significance option not recognised, running SVD anyway')
         return components, eigenvectors, s, explained_variance_ratio
-
-    
-def get_power_envelopes(timeseries, power=True, padding=25):
-    
-    # timeseries is nsub x ntime x nfeatures
-    assert np.ndim(timeseries) == 3
-    
-    # pad 
-    reflected_timeseries = np.concatenate((timeseries[:,padding-1::-1,:],
-                                            timeseries,
-                                            timeseries[:,-1:-padding-1:-1,:]), axis=1)
-    # hilbert transform
-    analytic_signals = hilbert(reflected_timeseries, axis=1)
-    
-    # oscillatory power
-    amplitude_envelopes = np.abs(analytic_signals)
-    
-    # crop and return
-    if power:
-        return amplitude_envelopes[:,padding:padding+timeseries.shape[1], :] ** 2
-    else:
-        return amplitude_envelopes[:,padding:padding+timeseries.shape[1], :]
